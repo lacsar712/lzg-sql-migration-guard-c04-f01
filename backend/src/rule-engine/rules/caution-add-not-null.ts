@@ -29,12 +29,32 @@ function columnHasNotNullWithoutDefault(colDef: any): boolean {
   return notNull && !hasDefault;
 }
 
+function exprHasNotNull(expr: any): boolean {
+  const nullable = expr?.nullable;
+  if (nullable === false) return true;
+  if (typeof nullable === 'string' && /not\s*null/i.test(nullable)) return true;
+  if (nullable && typeof nullable === 'object') {
+    return /not\s*null/i.test(JSON.stringify(nullable));
+  }
+  return false;
+}
+
+// 注意：不能用整段 JSON 是否含 "default" 判断——
+// node-sql-parser 的列名节点自带 {"type":"default","value":...}，会永远误判为有 DEFAULT。
+// 只有非 null 的 default_val/default 字段才代表真正的 DEFAULT 子句。
+function exprHasDefault(expr: any): boolean {
+  return expr?.default_val != null || expr?.default != null;
+}
+
 function inspectAddColumn(expr: any): boolean {
   if (!expr) return false;
   const action = String(expr.action || '').toLowerCase();
   const resource = String(expr.resource || '').toLowerCase();
   const isAdd = action === 'add' || action === 'add column' || action.includes('add');
   if (!isAdd) return false;
+
+  // node-sql-parser 5.x：nullable/default_val 直接挂在 alter expr 上
+  if (exprHasNotNull(expr) && !exprHasDefault(expr)) return true;
 
   const candidates: any[] = [];
   if (expr.column) candidates.push(expr.column);
@@ -55,7 +75,8 @@ function inspectAddColumn(expr: any): boolean {
   const text = JSON.stringify(expr).toLowerCase();
   if (
     text.includes('not null') &&
-    !text.includes('default') &&
+    !/"default_val":\s*(?!null)/.test(text) &&
+    !/"default":\s*(?!null)/.test(text) &&
     (action.includes('add') || resource.includes('column'))
   ) {
     return true;

@@ -65,10 +65,33 @@ fixtures/  示例 .sql 文件
 4. 打开「历史」可回看刚才的分析记录
 5. （可选）用 `reader / read123456` 登录，确认无法 Analyze，但可看历史
 
-## 本地单测（可选）
+## 本地单测
 
 ```bash
 cd backend
 npm install
-npm test
+npm test                  # 跑全部 spec（rules 引擎语义 + analyze RBAC）
 ```
+
+按范围选择用例（jest 参数前需要 `--`）：
+
+```bash
+# 按 spec 文件选
+npm test -- --testPathPattern rules          # 只跑规则引擎 test/rules.spec.ts
+npm test -- --testPathPattern api-rbac       # 只跑 test/api-rbac.spec.ts
+
+# 按用例名正则选（-t 匹配 describe/it 名称）
+npm test -- -t "no_drop_table"               # 只跑名含 no_drop_table 的用例
+npm test -- -t "policy"                      # policy 开关/降级相关
+npm test -- -t "reader"                      # reader 角色 RBAC
+
+# 组合：文件 + 用例名
+npm test -- --testPathPattern rules -t "policy"
+```
+
+便捷脚本：`npm run test:rules`、`npm run test:rbac`。
+
+> 测试不拆生产校验：`api-rbac` 走真实 HTTP 链路（全局 AuthGuard + 与 `main.ts`
+> 一致的 ValidationPipe + 真实规则引擎），仅把 Postgres 的 `HistoryService`
+> 换成桩；非法 DTO 仍断言 400，危险 SQL 在 401/403 时断言绝不落库。
+

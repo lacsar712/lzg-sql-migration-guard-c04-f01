@@ -15,8 +15,10 @@ function isCreateIndex(stmt: any): boolean {
 function isConcurrent(stmt: any, sql: string): boolean {
   if (stmt.concurrently === true || stmt.concurrent === true) return true;
   if (/CREATE\s+(UNIQUE\s+)?INDEX\s+CONCURRENTLY/i.test(sql)) return true;
+  // 注意：不能用 includes('concurrent')——node-sql-parser 的 AST 恒带
+  // "concurrently": null 键，子串匹配会把普通建索引全部误判为 CONCURRENTLY。
   const kw = JSON.stringify(stmt).toLowerCase();
-  if (kw.includes('concurrent')) return true;
+  if (/"concurrently":\s*true|"concurrent":\s*true/.test(kw)) return true;
   return false;
 }
 
